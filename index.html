@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Speech Generation Demo</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f0f0f0;
+      padding: 20px;
+    }
+
+    .container {
+      background-color: white;
+      border-radius: 8px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+      padding: 20px;
+      max-width: 1200px;
+      margin: 20px auto;
+    }
+
+    h1 {
+      text-align: center;
+      font-size: 32px;
+      font-weight: bold;
+    }
+
+    h2 {
+      text-align: center;
+      font-size: 20px;
+      font-weight: bold;
+    }
+
+    h3 {
+      margin-top: 30px;
+    }
+
+    ul {
+      list-style-type: none;
+      padding: 0;
+    }
+
+    li {
+      font-size: 18px;
+      font-weight: bold;
+      margin: 10px 0;
+    }
+
+    a {
+      text-decoration: none;
+      color: #007bff;
+    }
+
+    p {
+      font-size: 16px;
+      line-height: 1.5;
+      margin: 20px 0;
+    }
+
+    .centered-paragraph {
+      width: 1100px;
+      margin: 0 auto;
+      text-align: left;
+    }
+
+    .table-container {
+      margin: 20px auto;
+      max-width: 1200px;
+      overflow-x: auto;
+      display: block;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      border: 1px solid #ccc;
+    }
+
+    th,
+    td {
+      padding: 8px;
+      text-align: center;
+      border: 1px solid lightgray;
+    }
+
+    th {
+      border-bottom: 2px solid black;
+      background-color: #f9f9f9;
+    }
+
+    .sticky-column {
+      position: sticky;
+      left: 0;
+      background-color: white;
+      z-index: 1;
+      font-weight: bold;
+    }
+
+    .empty-cell {
+      display: none;
+    }
+
+    audio {
+      width: 280px;
+    }
+
+    img {
+      display: block;
+      margin: 20px auto;
+    }
+  </style>
+  <!-- 仅加载 MathJax -->
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+
+<body>
+  <!-- 1. 标题与摘要 -->
+  <div class="container">
+    <!-- <h1 class="entry-title"> -->
+    <h1 class="entry-title" itemprop="headline" style="width: 80%; margin: 0 auto; text-align: center;">
+      Improving Speech Generation via Multi-Neighbor Token Prediction for Neural Codec Language Models
+    </h1>
+    <br>
+    <p class="centered-paragraph">
+      <b>Abstract.</b> Inspired by Large Language Models (LLMs), codec-based TTS systems have achieved remarkable
+      success in high-fidelity speech generation by directly adopting the standard Cross-Entropy (CE) objective to
+      predict sequences of discrete speech tokens from neural audio codecs. However, this practice overlooks the
+      geometric structure of codec token spaces: tokens that are close in the codec codebook embedding space often
+      correspond to acoustically similar speech realizations and can serve as perceptually plausible alternatives. We
+      term this observation the <b>Neighboring Token Phenomenon</b>. The one-hot CE objective is agnostic to such
+      structure, as it penalizes all non-target tokens equally, including these close neighbors, creating a mismatch
+      between the structured codec latent space and the learning objective. In this paper, we quantitatively analyze the
+      neighboring token phenomenon in both reconstruction and generation settings. To address the mismatch, we propose
+      <b>Multi-Neighbor Cross-Entropy (MNCE)</b> loss function, which generalizes the one-hot target of CE loss into a
+      positive set containing the ground-truth token and its nearest neighbors, encouraging the model to treat neighbor
+      predictions as partially correct. As a result, even when the model misses the exact target token, it is more
+      likely to predict a close neighbor rather than an unrelated token, reducing perceptually harmful errors in
+      synthesized speech. Experiments demonstrate that MNCE is effective and generalizable across diverse codec-based
+      TTS systems, improving quality and robustness. Moreover, scaling training to 20,000 hours further validates the
+      scalability of our approach.
+    </p>
+
+    <h2 id="content">Table of Contents</h2>
+    <ul class="centered-paragraph">
+      <li><a href="#Part 1">1. Analysis of Neighboring Token Phenomenon</a></li>
+      <li><a href="#Part 2">2. Speech Generation Results on LibriSpeech-PC test-clean</a></li>
+      <li><a href="#Part 3">3. Speech Generation Results on SEED test-en</a></li>
+    </ul>
+  </div>
+
+  <!-- 2. Part 1: 分析部分 -->
+  <div class="container">
+    <h3 id="Part 1" align="center">1. Analysis of Neighboring Token Phenomenon in Codec-based TTS</h3>
+    <div align="center">
+      <img src="fig/reconstruction-wer_sim.png" width="75%" alt="Figure 1">
+      <p class="centered-paragraph" style="width: 75%;">Figure 1: Impact of Neighbor Substitution with Probability
+        <i>r</i> = 0.25 on the Speech Reconstruction Task. <i>K</i> = 0 indicates that the original token is kept
+        unchanged. As <i>K</i> increases, the original token can be replaced by more distant neighbors, which moderately
+        increases WER while keeping SIM changes within a narrow range.
+      </p>
+
+      <img src="fig/generation-wer_sim.png" width="75%" alt="Figure 2">
+      <p class="centered-paragraph" style="width: 75%;">Figure 2: Impact of Neighbor Substitution with Probability
+        <i>r</i> = 0.25 on the Speech Generation Task. Across codec-based TTS systems, substituting tokens with their
+        neighbors leads to small changes in WER and SIM, suggesting that neighboring tokens are perceptually plausible
+        alternatives, validating the neighboring token phenomenon.
+      </p>
+    </div>
+    <br>
+
+    <p class="centered-paragraph" style="width: 75%;"> From above 2 figures, we can draw the following conclusions: <br>
+    </p>
+    <br>
+    <p class="centered-paragraph" style="width: 75%;"> <strong>Speech Reconstruction</strong>. Figure 1 indicates that
+      codec
+      reconstruction is only mildly affected by neighbor substitution under a token substitution probability of <i>r</i>
+      = 0.25. For both X-codec2 and <i>S</i><sup>3</sup> tokenizer, WER gradually increases with minor fluctuations as
+      <i>K</i> grows, since more distant neighbors can replace the original tokens and slightly degrade audio quality.
+      SIM follows a similar trend: a slight decrease at small <i>K</i>, a modest recovery, and then a slow drift towards
+      a stable and slightly worse SIM. Overall, enlarging the neighbor set leads to progressive but small degradations
+      in WER and SIM, suggesting that neighboring tokens are perceptually valid substitutes for reconstruction.
+    </p>
+    <br>
+    <p class="centered-paragraph" style="width: 75%;"> <strong>Speech Generation</strong>. As shown in Figure 2, speech
+      generation exhibits similarly small changes with increasing <i>K</i> under the substitution probability <i>r</i> =
+      0.25. For both Llasa and CosyVoice2, WER and SIM vary only slightly up to <i>K</i> = 10, supporting the conclusion
+      that neighboring tokens are acoustically plausible alternatives for language-model-predicted sequences.
+      Interestingly, the degradation in speech generation is smaller than that in speech reconstruction. For example,
+      with <i>S</i><sup>3</sup> tokenizer, increasing <i>K</i> from 0 to 10 raises reconstruction WER from 2.58 to 3.20
+      (absolute +0.62) and decreases SIM from 90.48 to 89.87 (absolute -0.61). In contrast, for speech generation, WER
+      increases from 1.69 to 2.05 (absolute +0.36) and SIM decreases from 73.81 to 73.57 (absolute -0.24). This may be
+      due to higher tolerance in generation, since swapping a token to an acoustically similar neighbor introduces only
+      a small change and the inference stage already uses stochastic sampling that is robust to such variations. </p>
+    <br>
+    <p class="centered-paragraph" style="width: 75%;">These results confirm: (1) neighboring token
+      phenomenon exists not only in the codec but also in the neural codec language model trained upon it, spanning the
+      entire codec-based TTS system; (2) tokens can be substituted by near neighbors with negligible perceptual impact.
+      These observations motivate our new training objective that accounts for neighboring tokens, rather than treating
+      all non-target tokens as equally incorrect. </p>
+  </div>
+  </div>
+
+  <!-- 3. Part 2: 动态表格部分 -->
+  <div class="container">
+    <h3 id="Part 2" align="center">2. Speech Generation Results on LibriSpeech-PC test-clean</h3>
+    <p class="centered-paragraph">
+      We present speech generation samples from diverse codec-based TTS systems using WavTokenizer, X-codec2, and the
+      <i>S</i><sup>3</sup> tokenizer. For each setup, we train two codec language models with the same architecture: one
+      with the standard cross-entropy (CE) loss, and one with the proposed Multi-Neighbor Cross-Entropy (MNCE) loss, and
+      provide side-by-side comparisons. The superscript \( \text{MNCE} \) indicates the neural codec language model
+      trained with \( \text{MNCE} \)
+      loss, and the subscripts, such as \( \text{960h} \), denote the training data scale.
+    </p>
+
+    <!-- 动态加载表格的容器 -->
+    <div class="table-container" id="librispeech-table-container">
+      <p>Loading table data, please wait...</p>
+    </div>
+
+    <!-- 调试信息输出（可选） -->
+    <div id="load-text-debug" class="centered-paragraph"
+      style="white-space: pre-wrap; font-size: 12px; color: #666; margin-top: 40px;"></div>
+  </div>
+
+  <!-- JavaScript 放置在 Body 结束前 -->
+  <script>
+    async function initLibriSpeech() {
+      const display_num_examples = 4;
+      const testset = "LibriSpeech";
+      const tableContainer = document.getElementById('librispeech-table-container');
+
+      try {
+        // --- 1. 获取并解析 test.txt ---
+        const testRes = await fetch(`audio/${testset}/test.txt`);
+        if (!testRes.ok) throw new Error(`Could not find audio/${testset}/test.txt`);
+        const testRaw = await testRes.text();
+        const test_infos = testRaw.trim().split('\n').slice(0, display_num_examples).map(line => {
+          const parts = line.split('\t');
+          return { speech_id: parts[0], gt_text: parts[1], prompt_speech_id: parts[2], prompt_text: parts[3] };
+        });
+
+        // --- 2. 获取并解析 model_names.txt (新增映射逻辑) ---
+        const nameRes = await fetch(`audio/${testset}/model_names.txt`);
+        let nameMap = {};
+        if (nameRes.ok) {
+          const nameRaw = await nameRes.text();
+          nameRaw.trim().split('\n').forEach(line => {
+            const firstColonIndex = line.indexOf(':');
+            if (firstColonIndex !== -1) {
+              const key = line.substring(0, firstColonIndex).trim();
+              const value = line.substring(firstColonIndex + 1).trim();
+              nameMap[key] = value;
+            }
+          });
+        }
+
+        // 定义一个映射辅助函数
+        const getDisplayName = (id) => nameMap[id] || id;
+
+        // --- 3. 获取并解析 models.txt ---
+        const modelRes = await fetch(`audio/${testset}/models.txt`);
+        if (!modelRes.ok) throw new Error(`Could not find audio/${testset}/models.txt`);
+        const modelRaw = await modelRes.text();
+        const model_pairs = modelRaw.trim().split('\n').map(line => {
+          const parts = line.split(':');
+          return {
+            baseline: parts[0] ? parts[0].trim() : "",
+            variant: parts[1] ? parts[1].trim() : "None"
+          };
+        });
+
+        // --- 4. 构建表格 ---
+        let html = `<table align="center"><thead>`;
+        html += `
+            <tr>
+              <th rowspan="2" class="sticky-column" style="min-width: 110px;">Neural Audio Codec</th>
+              <th rowspan="2" style="min-width: 150px;">Neural Codec Language Model</th>
+              <th colspan="${display_num_examples}">Samples</th>
+            </tr>
+            <tr>
+              ${test_infos.map((_, i) => `<th style="min-width: 284px;">sample ${i + 1}</th>`).join('')}
+            </tr>
+          </thead><tbody>`;
+
+        // Ground Truth & Reference 行 (逻辑保持不变)
+        html += `
+          <tr>
+            <td rowspan="2" class="sticky-column">Ground Truth</td>
+            <td>Text</td>
+            ${test_infos.map(info => `<td>${info.gt_text}</td>`).join('')}
+          </tr>
+          <tr>
+            <td class="empty-cell"></td>
+            <td>Target Audio</td>
+            ${test_infos.map(info => `
+              <td style="text-align: center">
+                <audio controls="controls"><source src="audio/${testset}/ground_truth/${info.speech_id}.wav" /></audio>
+              </td>`).join('')}
+          </tr>
+          <tr>
+            <td rowspan="2" class="sticky-column">Reference</td>
+            <td>Reference Text</td>
+            ${test_infos.map(info => `<td>${info.prompt_text}</td>`).join('')}
+          </tr>
+          <tr>
+            <td class="empty-cell"></td>
+            <td>Reference Audio</td>
+            ${test_infos.map(info => `
+              <td style="text-align: center">
+                <audio controls="controls"><source src="audio/${testset}/reference/${info.speech_id}.wav" /></audio>
+              </td>`).join('')}
+          </tr>`;
+
+        // --- 5. 模型对比行 (应用映射) ---
+        model_pairs.forEach(pair => {
+          if (!pair.baseline) return;
+          const hasV = pair.variant !== "None";
+
+          // 处理 Baseline
+          const b_parts = pair.baseline.split('+');
+          const b_codec_raw = b_parts[0];
+          const b_model_raw = b_parts.length > 1 ? b_parts[1] : b_parts[0];
+
+          // 使用映射后的名称
+          const b_codec_display = getDisplayName(b_codec_raw);
+          const b_model_display = getDisplayName(b_model_raw);
+
+          // Baseline 行渲染
+          html += `
+            <tr>
+              <td rowspan="${hasV ? 2 : 1}" class="sticky-column">${b_codec_display}</td>
+              <td>${b_model_display}</td>
+              ${test_infos.map(info => `
+                <td style="text-align: center">
+                  <audio controls="controls"><source src="audio/${testset}/${pair.baseline}/${info.speech_id}.wav" /></audio>
+                </td>`).join('')}
+            </tr>`;
+
+          // Variant 行渲染
+          if (hasV) {
+            const v_parts = pair.variant.split('+');
+            const v_model_raw = v_parts.length > 1 ? v_parts[1] : v_parts[0];
+            const v_model_display = getDisplayName(v_model_raw);
+
+            html += `
+              <tr>
+                <td class="empty-cell"></td>
+                <td>${v_model_display}</td>
+                ${test_infos.map(info => `
+                  <td style="text-align: center">
+                    <audio controls="controls"><source src="audio/${testset}/${pair.variant}/${info.speech_id}.wav" /></audio>
+                  </td>`).join('')}
+              </tr>`;
+          }
+        });
+
+        html += `</tbody></table>`;
+        tableContainer.innerHTML = html;
+
+        // 渲染 MathJax
+        if (window.MathJax && window.MathJax.typeset) {
+          window.MathJax.typeset();
+        }
+
+      } catch (err) {
+        console.error(err);
+        tableContainer.innerHTML = `<p style="color:red; font-weight:bold;">Error: ${err.message}</p>`;
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', initLibriSpeech);
+  </script>
+
+
+  <div class="container">
+    <h3 id="Part 3" align="center">3. Speech Generation Results on SEED test-en</h3>
+    <p class="centered-paragraph">
+      We present speech generation samples from open-source TTS systems, including variants trained with the
+      proposed MNCE (Multi-Neighbor Cross-Entropy) loss. Our reproduced CosyVoice2 system uses the <i>S</i><sup>3</sup>
+      tokenizer and a
+      Qwen2.5-0.5B-based neural codec language model. The superscript \( \text{MNCE} \) indicates the neural codec
+      language model
+      trained with \( \text{MNCE} \) loss, and the subscripts, such as \( \text{20Kh} \),
+      denote the training data scale.
+    </p>
+
+    <!-- 动态加载表格的容器 -->
+    <div class="table-container" id="seed-table-container">
+      <p>Loading table data, please wait...</p>
+    </div>
+
+    <!-- 调试信息输出（可选） -->
+    <div id="load-text-debug" class="centered-paragraph"
+      style="white-space: pre-wrap; font-size: 12px; color: #666; margin-top: 40px;"></div>
+  </div>
+
+  <!-- JavaScript 放置在 Body 结束前 -->
+  <script>
+    async function initSEED() {
+      const display_num_examples = 6;
+      const testset = "SEED_test_en";
+      const tableContainer = document.getElementById('seed-table-container');
+
+      try {
+        // --- 1. 获取并解析 test.txt ---
+        const testRes = await fetch(`audio/${testset}/test.txt`);
+        if (!testRes.ok) throw new Error(`Could not find audio/${testset}/test.txt`);
+        const testRaw = await testRes.text();
+        const test_infos = testRaw.trim().split('\n').slice(0, display_num_examples).map(line => {
+          const parts = line.split('\t');
+          return { speech_id: parts[0], gt_text: parts[1], prompt_speech_id: parts[2], prompt_text: parts[3] };
+        });
+
+        // --- 2. 获取并解析 model_names.txt (新增映射逻辑) ---
+        const nameRes = await fetch(`audio/${testset}/model_names.txt`);
+        let nameMap = {};
+        if (nameRes.ok) {
+          const nameRaw = await nameRes.text();
+          nameRaw.trim().split('\n').forEach(line => {
+            const firstColonIndex = line.indexOf(':');
+            if (firstColonIndex !== -1) {
+              const key = line.substring(0, firstColonIndex).trim();
+              const value = line.substring(firstColonIndex + 1).trim();
+              nameMap[key] = value;
+            }
+          });
+        }
+
+        // 定义一个映射辅助函数
+        const getDisplayName = (id) => nameMap[id] || id;
+
+        // --- 3. 获取并解析 models.txt ---
+        const modelRes = await fetch(`audio/${testset}/models.txt`);
+        if (!modelRes.ok) throw new Error(`Could not find audio/${testset}/models.txt`);
+        const modelRaw = await modelRes.text();
+        const model_pairs = modelRaw.trim().split('\n').map(line => {
+          const parts = line.split(':');
+          return {
+            baseline: parts[0] ? parts[0].trim() : "",
+            variant: parts[1] ? parts[1].trim() : "None"
+          };
+        });
+
+        // --- 4. 构建表格 ---
+        let html = `<table align="center"><thead>`;
+        html += `
+          <tr>
+            <th rowspan="2" class="sticky-column" style="min-width: 110px;">Neural Audio Codec</th>
+            <th rowspan="2" style="min-width: 150px;">Neural Codec Language Model</th>
+            <th colspan="${display_num_examples}">Samples</th>
+          </tr>
+          <tr>
+            ${test_infos.map((_, i) => `<th style="min-width: 284px;">sample ${i + 1}</th>`).join('')}
+          </tr>
+        </thead><tbody>`;
+
+        // Ground Truth & Reference 行 (逻辑保持不变)
+        // Ground Truth & Reference 行
+        html += `
+        <tr>
+          <!-- 将 rowspan 改为 1 -->
+          <td rowspan="1" class="sticky-column">Ground Truth</td>
+          <td>Text</td>
+          ${test_infos.map(info => `<td>${info.gt_text}</td>`).join('')}
+        </tr>
+        <!-- 这里删除了原本的 Target Audio <tr> 块 -->
+
+        <tr>
+          <td rowspan="2" class="sticky-column">Reference</td>
+          <td>Reference Text</td>
+          ${test_infos.map(info => `<td>${info.prompt_text}</td>`).join('')}
+        </tr>
+        <tr>
+          <td class="empty-cell"></td>
+          <td>Reference Audio</td>
+          ${test_infos.map(info => `
+            <td style="text-align: center">
+              <audio controls="controls"><source src="audio/${testset}/reference/${info.speech_id}.wav" /></audio>
+            </td>`).join('')}
+        </tr>`;
+
+
+        // --- 5. 模型对比行 (应用映射) ---
+        model_pairs.forEach(pair => {
+          if (!pair.baseline) return;
+          const hasV = pair.variant !== "None";
+
+          // 处理 Baseline
+          const b_parts = pair.baseline.split('+');
+          const b_codec_raw = b_parts[0];
+          const b_model_raw = b_parts.length > 1 ? b_parts[1] : b_parts[0];
+
+          // 使用映射后的名称
+          const b_codec_display = getDisplayName(b_codec_raw);
+          const b_model_display = getDisplayName(b_model_raw);
+
+          // Baseline 行渲染
+          html += `
+          <tr>
+            <td rowspan="${hasV ? 2 : 1}" class="sticky-column">${b_codec_display}</td>
+            <td>${b_model_display}</td>
+            ${test_infos.map(info => `
+              <td style="text-align: center">
+                <audio controls="controls"><source src="audio/${testset}/${pair.baseline}/${info.speech_id}.wav" /></audio>
+              </td>`).join('')}
+          </tr>`;
+
+          // Variant 行渲染
+          if (hasV) {
+            const v_parts = pair.variant.split('+');
+            const v_model_raw = v_parts.length > 1 ? v_parts[1] : v_parts[0];
+            const v_model_display = getDisplayName(v_model_raw);
+
+            html += `
+            <tr>
+              <td class="empty-cell"></td>
+              <td>${v_model_display}</td>
+              ${test_infos.map(info => `
+                <td style="text-align: center">
+                  <audio controls="controls"><source src="audio/${testset}/${pair.variant}/${info.speech_id}.wav" /></audio>
+                </td>`).join('')}
+            </tr>`;
+          }
+        });
+
+        html += `</tbody></table>`;
+        tableContainer.innerHTML = html;
+
+        // 渲染 MathJax
+        if (window.MathJax && window.MathJax.typeset) {
+          window.MathJax.typeset();
+        }
+
+      } catch (err) {
+        console.error(err);
+        tableContainer.innerHTML = `<p style="color:red; font-weight:bold;">Error: ${err.message}</p>`;
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', initSEED);
+  </script>
+
+
+</body>
+
+</html>
