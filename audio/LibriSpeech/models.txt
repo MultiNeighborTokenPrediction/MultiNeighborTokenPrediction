@@ -1,0 +1,6 @@
+xcodec2+llasa: None
+s3tokenizer+cosyvoice2: None
+wavtokenizer+qwen: wavtokenizer+qwen_mnce
+xcodec2+qwen: xcodec2+qwen_mnce
+s3tokenizer+qwen: s3tokenizer+qwen_mnce
+s3tokenizer+qwen_emilia: s3tokenizer+qwen_emilia_mnce
