@@ -1,0 +1,6 @@
+llasa: \( \text{Llasa}_{\text{250Kh}} \)
+cosyvoice2: \( \text{CosyVoice2}_{\text{170Kh}} \)
+xcodec2: \( \text{X-codec2} \)
+s3tokenizer: \( \text{S}^{\text{3}} \text{ tokenizer} \)
+qwen_emilia: \( \text{reproduced CosyVoice2}_{\text{20Kh}} \)
+qwen_emilia_mnce: \( \text{reproduced CosyVoice2}_{\text{20Kh}}^{\text{MNCE}} \)
