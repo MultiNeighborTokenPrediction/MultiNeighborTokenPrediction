@@ -1,4 +1,0 @@
-xcodec2+qwen: xcodec2+qwen_mnce
-s3tokenizer+qwen: s3tokenizer+qwen_mnce
-s3tokenizer+qwen_emilia: s3tokenizer+qwen_emilia_mnce
-
