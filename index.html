@@ -144,7 +144,7 @@
 
     <h2 id="content">Table of Contents</h2>
     <ul class="centered-paragraph">
-      <li><a href="#Part 0">Preliminaries: Overall Pipeline of Codec-based TTS</a></li>
+      <li><a href="#Part 0">Preliminaries: Overall Pipeline of Codec-based TTS and MNCE Loss</a></li>
       <li><a href="#Part 1">1. Analysis of Neighboring Token Phenomenon</a></li>
       <li><a href="#Part 2">2. Speech Generation Results on LibriSpeech-PC test-clean</a></li>
       <li><a href="#Part 3">3. Speech Generation Results on SEED test-en</a></li>
@@ -156,13 +156,12 @@
 
   <!-- part 0 -->
   <div class="container">
-    <h3 id="Part 0" align="center">Preliminaries: Overall Pipeline of Codec-based TTS</h3>
+    <h3 id="Part 0" align="center">Preliminaries: Overall Pipeline of Codec-based TTS and MNCE Loss</h3>
     <div align="center">
       <img src="fig/pipeline.png" width="50%" alt="Figure: overall_pipeline">
       <p class="centered-paragraph" style="width: 75%; margin: 0 auto; text-align: center;">
         Figure: Overall Pipeline of Codec-based TTS.
       </p>
-
     </div>
     <br>
 
@@ -188,6 +187,23 @@
     <p class="centered-paragraph" style="width: 75%;"> Although these two type of codec-based TTS architectures differ
       in their decoding paths, both use the standard CE loss during LM training. This is exactly where our proposed MNCE
       loss makes targeted improvements to better leverage the neighborhood structure of speech tokens.
+    </p>
+    <br>
+
+    <div align="center">
+      <img src="fig/MNCE_overview.png" width="75%" alt="Figure: overall_mnce_loss">
+      <p class="centered-paragraph" style="width: 75%; margin: 0 auto; text-align: center;">
+        Figure: Comparison between CE loss and MNCE loss.
+      </p>
+    </div>
+    <br>
+    <p class="centered-paragraph" style="width: 75%;"> CE designates the single ground-truth token as a solitary
+      point-like positive target and imposes uniform penalties on all non-target tokens, including acoustically similar
+      neighboring tokens, completely ignoring the geometric structure of the token space.
+
+      MNCE, by contrast, leverages the geometric similarity of token embeddings to integrate the ground-truth token and
+      its neighboring tokens into a regional positive set, only imposing penalties on irrelevant tokens outside this set
+      and enabling the model to treat acoustically similar neighboring tokens as partially correct predictions.
     </p>
     <br>
 
