@@ -1,0 +1,1 @@
+s3tokenizer+qwen: s3tokenizer+qwen_mnce
