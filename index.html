@@ -150,6 +150,7 @@
       <li><a href="#Part 3">3. Speech Generation Results on SEED test-en</a></li>
       <li><a href="#Part 4">4. Results on Long-context Speech Generation</a></li>
       <li><a href="#Part 5">5. More Samples</a></li>
+      <li><a href="#Part 6">6. Visualization</a></li>
     </ul>
   </div>
 
@@ -1057,6 +1058,262 @@
   </script>
 
 
+  <!-- part 6 -->
+  <div class="container">
+    <h3 id="Part 6" align="center">6. Visualization</h3>
+    <div align="center">
+      <img src="fig/rel_logits_percentage/rel_logits.png" width="80%" alt="Figure: relative_logits">
+      <p class="centered-paragraph" style="width: 75%; margin: 0 auto; text-align: center;">
+        Figure: Relative logit values of neighboring tokens with respect to the highest logit token.
+      </p>
+    </div>
+    <br>
+
+    <p class="centered-paragraph" style="width: 75%;"> As shown in the figure above, for each prediction step, we
+      select the speech token with the highest logit as the target token and compute the relative logit values of its
+      top-3 nearest neighbors, normalized by the target token's logit. Compared to the model trained with standard CE
+      loss, the model trained with the proposed MNCE loss exhibits an average increase of 16.45% in the relative logit
+      values of neighboring tokens. This indicates that even when the model fails to predict the exact target token or
+      samples alternative tokens during inference, it has a significantly higher probability of selecting acoustically
+      reasonable neighboring tokens, which correspond to perceptually acceptable speech realizations and reduce the risk
+      of generating perceptually detrimental errors.
+    </p>
+    <br>
+
+    <p class="centered-paragraph" style="width: 75%;">
+      The following table presents the audio samples generated from the figures above, where Subfigure 1
+      corresponds to \( \text{S}^{\text{3}} \text{ tokenizer} \) + \( \text{Qwen2.5}_{\text{960h}} \), and Subfigure 2 corresponds to \(
+      \text{S}^{\text{3}} \text{ tokenizer} \) + \( \text{Qwen2.5}_{\text{960h}}^{\text{MNCE}} \).
+    </p>
+
+    <!-- 动态加载表格的容器 -->
+    <div class="table-container" id="visualization-table-container">
+      <p>Loading table data, please wait...</p>
+    </div>
+
+  </div>
+
+  <script>
+    /**
+     * 辅助函数：解析 JSONL 文件并返回对象数组
+     * @param {string} url - JSONL 文件的路径
+     */
+    async function fetchJsonlData(url) {
+      try {
+        const res = await fetch(url);
+        if (!res.ok) return [];
+        const text = await res.text();
+        // 将每一行字符串解析为 JSON 对象，过滤掉空行
+        return text.trim().split('\n')
+          .filter(line => line.trim())
+          .map(line => JSON.parse(line));
+      } catch (e) {
+        console.error("Error loading JSONL:", url, e);
+        return [];
+      }
+    }
+
+    /**
+     * 主初始化函数：根据模型对生成对比表格
+     */
+    async function initVisualizationExamples() {
+      const display_num_examples = 6; // 每行展示的样本数
+      const testset = "visualization"; // 根目录
+      const tableContainer = document.getElementById('visualization-table-container');
+
+      try {
+        // --- 1. 加载基础配置 ---
+        const [nameRes, modelRes] = await Promise.all([
+          fetch(`audio/${testset}/model_names.txt`),
+          fetch(`audio/${testset}/models.txt`)
+        ]);
+
+        if (!modelRes.ok) throw new Error("models.txt missing.");
+
+        // 解析模型名称映射
+        let nameMap = {};
+        if (nameRes.ok) {
+          const nameRaw = await nameRes.text();
+          nameRaw.trim().split('\n').forEach(line => {
+            const idx = line.indexOf(':');
+            if (idx !== -1) nameMap[line.substring(0, idx).trim()] = line.substring(idx + 1).trim();
+          });
+        }
+        const getDisplayName = (id) => nameMap[id] || id;
+
+        // 解析模型对比对 (Baseline : Variant)
+        const modelRaw = await modelRes.text();
+        const model_pairs = modelRaw.trim().split('\n').map(line => {
+          const parts = line.split(':');
+          return {
+            baseline: parts[0] ? parts[0].trim() : "",
+            variant: parts[1] ? parts[1].trim() : "None"
+          };
+        });
+
+        // --- 2. 遍历模型对并构建 HTML ---
+        let allTablesHtml = "";
+
+        for (const pair of model_pairs) {
+          if (!pair.baseline) continue;
+
+          // 加载 Baseline 的评估数据作为主数据源
+          const baselineDataList = await fetchJsonlData(`audio/${testset}/${pair.baseline}/eval/eval.jsonl`);
+          if (baselineDataList.length === 0) {
+            console.warn(`No data found for baseline: ${pair.baseline}`);
+            continue;
+          }
+
+          // 取前 display_num_examples 个样本
+          const currentSamples = baselineDataList.slice(0, display_num_examples);
+
+          // 如果有 Variant，加载其评估数据并建立 ID 索引映射
+          let variantDataMap = {};
+          if (pair.variant !== "None") {
+            const vList = await fetchJsonlData(`audio/${testset}/${pair.variant}/eval/eval.jsonl`);
+            vList.forEach(obj => { variantDataMap[obj.speech_id] = obj; });
+          }
+
+          // --- 3. 开始构建当前 Pair 的 HTML 内容 ---
+
+          // 先计算名称用于标题
+          const b_parts = pair.baseline.split('+');
+          const b_codec_display = getDisplayName(b_parts[0]);
+          const b_model_display = getDisplayName(b_parts.length > 1 ? b_parts[1] : b_parts[0]);
+
+          // 生成对比组标题 (英语)
+          let html = `<h4 align="center" style="margin-top: 50px; color: #333;">Comparison results in TTS system consisting of ${b_codec_display} and ${b_model_display}</h4>`;
+
+          // 生成表格
+          html += `<table align="center" style="margin-bottom: 60px;"><thead>`;
+          html += `
+              <tr>
+                  <th rowspan="2" class="sticky-column" style="min-width: 110px;">Neural Audio Codec</th>
+                  <th rowspan="2" style="min-width: 150px;">Neural Codec Language Model</th>
+                  <th colspan="${currentSamples.length}">Samples</th>
+              </tr>
+              <tr>
+                  ${currentSamples.map((_, i) => `<th style="min-width: 284px;">sample ${i + 1}</th>`).join('')}
+              </tr></thead><tbody>`;
+
+          // --- Ground Truth 大行 (包含 Text 和 Target Audio) ---
+          html += `
+              <tr>
+                  <td rowspan="2" class="sticky-column">Ground Truth</td>
+                  <td>Text</td>
+                  ${currentSamples.map(s => `<td>${s.gt_text}</td>`).join('')}
+              </tr>
+              <tr>
+                  <td class="empty-cell"></td>
+                  <td>Target Audio</td>
+                  ${currentSamples.map(s => `
+                      <td style="text-align: center">
+                          <audio controls="controls"><source src="audio/${testset}/ground_truth/${s.speech_id}.wav" /></audio>
+                      </td>`).join('')}
+              </tr>`;
+
+          // --- Reference 大行 (包含 Reference Text 和 Reference Audio) ---
+          html += `
+              <tr>
+                  <td rowspan="2" class="sticky-column">Reference</td>
+                  <td>Reference Text</td>
+                  ${currentSamples.map(s => `<td>${s.prompt_text}</td>`).join('')}
+              </tr>
+              <tr>
+                  <td class="empty-cell"></td>
+                  <td>Reference Audio</td>
+                  ${currentSamples.map(s => `
+                      <td style="text-align: center">
+                          <audio controls="controls"><source src="audio/${testset}/reference/${s.speech_id}.wav" /></audio>
+                      </td>`).join('')}
+              </tr>`;
+
+          // --- 模型行 (Baseline) ---
+          const hasV = pair.variant !== "None";
+
+          html += `
+              <tr>
+                  <td rowspan="${hasV ? 2 : 1}" class="sticky-column">${b_codec_display}</td>
+                  <td>${b_model_display}</td>
+                  ${currentSamples.map(s => `
+                      <td style="text-align: center">
+                          <audio controls="controls"><source src="audio/${testset}/${pair.baseline}/wav/${s.speech_id}.wav" /></audio>
+                          <div class="metrics-box">
+                              <strong>WER:</strong> ${(s.wer).toFixed(2)}% | 
+                              <strong>Sim:</strong> ${(s.sim).toFixed(2) || "N/A"} | 
+                              <strong>UTMOS:</strong> ${(s.utmos).toFixed(2) || "N/A"}<br>
+                              <strong>Transcript:</strong> <span>${s.gen_text || "N/A"}</span>
+                          </div>
+                      </td>`).join('')}
+              </tr>`;
+
+          // --- 模型行 (Variant) ---
+          if (hasV) {
+            const v_parts = pair.variant.split('+');
+            const v_model_display = getDisplayName(v_parts.length > 1 ? v_parts[1] : v_parts[0]);
+
+            html += `
+                  <tr>
+                      <td class="empty-cell"></td>
+                      <td>${v_model_display}</td>
+                      ${currentSamples.map(s => {
+              const vs = variantDataMap[s.speech_id] || {};
+              return `
+                          <td style="text-align: center">
+                              <audio controls="controls"><source src="audio/${testset}/${pair.variant}/wav/${s.speech_id}.wav" /></audio>
+                              <div class="metrics-box">
+                                  <strong>WER:</strong> ${(vs.wer || 0).toFixed(2)}% | 
+                                  <strong>Sim:</strong> ${(vs.sim ? vs.sim.toFixed(2) : "N/A")} | 
+                                  <strong>UTMOS:</strong> ${(vs.utmos ? vs.utmos.toFixed(2) : "N/A")}<br>
+                                  <strong>Transcript:</strong> <span>${vs.gen_text || "N/A"}</span>
+                              </div>
+                          </td>`;
+            }).join('')}
+                  </tr>`;
+          }
+
+          html += `</tbody></table>`;
+          allTablesHtml += html;
+        }
+
+        // --- 4. 渲染到页面并处理 MathJax ---
+        tableContainer.innerHTML = allTablesHtml;
+
+        // 注入指标框的样式
+        if (!document.getElementById('metrics-style')) {
+          const style = document.createElement('style');
+          style.id = 'metrics-style';
+          style.innerHTML = `
+                  .metrics-box {
+                      text-align: left; 
+                      font-size: 0.82em; 
+                      margin-top: 10px; 
+                      background: #fdfdfd; 
+                      padding: 8px; 
+                      border: 1px solid #eee;
+                      border-radius: 4px;
+                      line-height: 1.5;
+                      color: #333;
+                  }
+                  .metrics-box span { color: #666; font-style: italic; }
+              `;
+          document.head.appendChild(style);
+        }
+
+        // 重新渲染 LaTeX 公式
+        if (window.MathJax && window.MathJax.typeset) {
+          window.MathJax.typeset();
+        }
+
+      } catch (err) {
+        console.error(err);
+        tableContainer.innerHTML = `<p style="color:red; font-weight:bold;">Error: ${err.message}</p>`;
+      }
+    }
+
+    // 页面加载完成后启动
+    document.addEventListener('DOMContentLoaded', initVisualizationExamples);
+  </script>
 
 
 </body>
